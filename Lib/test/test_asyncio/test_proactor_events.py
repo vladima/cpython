@@ -872,11 +872,15 @@ class ProactorCtrlCTest(test_utils.TestCase):
         self.loop = asyncio.ProactorEventLoop()
         self.set_event_loop(self.loop)
         self.addCleanup(self.loop.close)
-
         super().setUp()
 
     def test_ctrl_c_breaks_the_loop(self):
-        pass
+        async def block_on_read():
+            rsock, wsock = socket.socketpair()
+            reader, writer = await asyncio.open_connection(sock=rsock)
+            await reader.read(10)
+
+        self.loop.run_until_complete(block_on_read())
 
 
 @unittest.skipIf(sys.platform != 'win32',
