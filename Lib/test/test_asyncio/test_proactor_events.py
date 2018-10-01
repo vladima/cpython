@@ -864,6 +864,20 @@ class BaseProactorEventLoopTests(test_utils.TestCase):
         self.assertFalse(sock2.close.called)
         self.assertFalse(future2.cancel.called)
 
+@unittest.skipIf(sys.platform != 'win32',
+                 'Proactor is supported on Windows only')
+class ProactorCtrlCTest(test_utils.TestCase):
+    
+    def setUp(self):
+        self.loop = asyncio.ProactorEventLoop()
+        self.set_event_loop(self.loop)
+        self.addCleanup(self.loop.close)
+
+        super().setUp()
+
+    def test_ctrl_c_breaks_the_loop(self):
+        pass
+
 
 @unittest.skipIf(sys.platform != 'win32',
                  'Proactor is supported on Windows only')
