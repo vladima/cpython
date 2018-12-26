@@ -292,6 +292,7 @@ class TestNtpath(unittest.TestCase):
             return bytes(s, "utf-8")
 
         with TemporaryDirectory() as d:
+            f4 = None
             f = ntpath.join(d, "f")
             os.mkdir(f)
             f2 = ntpath.join(d, "g")
@@ -310,15 +311,25 @@ class TestNtpath(unittest.TestCase):
                 self.assertEqualCI(unc1, ntpath.realpath(unc2))
                 self.assertEqualCI(s2b(unc1), ntpath.realpath(s2b(unc2)))
 
-                # realpath for non-existent file fx in symlinked folder
-                # is original folder + fx
+                # realpath for non-existent file F in symlinked folder
+                # is original folder + F
                 file = ntpath.join(f, "missing")
                 file2 = ntpath.join(f2, "missing")
                 self.assertEqualCI(file, ntpath.realpath(file2))
                 self.assertEqualCI(s2b(file), ntpath.realpath(s2b(file2)))
+
+                # realpath for long path is in extended form
+                # even though initially it was not
+                f3 = ntpath.join(d, "f" * 255)
+                os.mkdir("\\\\?\\" + f3)
+                f4 = ntpath.join(d, "short")
+                _winapi.CreateJunction(f3, f4)
+                self.assertEqualCI("\\\\?\\" + f3, ntpath.realpath(f4))
+                self.assertEqualCI(s2b("\\\\?\\" + f3), ntpath.realpath(s2b(f4)))
             finally:
                 os.unlink(f2)
-
+                if f4:
+                    os.unlink(f4)
 
 
     @unittest.skipUnless(nt, "abspath requires 'nt' module")
