@@ -658,7 +658,7 @@ def realpath(filename):
                 break
             resolved_parts.append(tail)
     resolved = join(*reversed(resolved_parts))
-    # try to convert extended path to normal if 
+    # try to convert extended path to normal if
     # initial path did not use \\?\ prefix and result uses it
     if not is_extended_path and resolved.startswith(extended_length_prefix):
         resolved = _extended_to_normal(resolved)
