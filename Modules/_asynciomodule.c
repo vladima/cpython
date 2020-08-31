@@ -2681,7 +2681,7 @@ task_step_impl(TaskObj *task, PyObject *exc)
 
     if (exc == NULL) {
         if (PyGen_CheckExact(coro) || PyCoro_CheckExact(coro)) {
-            result = _PyGen_Send((PyGenObject*)coro, Py_None);
+            result = _PyGen_SendNoStopIteration((PyGenObject*)coro, Py_None, &o);
         }
         else {
             result = _PyObject_CallMethodIdOneArg(coro, &PyId_send, Py_None);
@@ -2698,7 +2698,7 @@ task_step_impl(TaskObj *task, PyObject *exc)
     if (result == NULL) {
         PyObject *et, *ev, *tb;
 
-        if (_PyGen_FetchStopIterationValue(&o) == 0) {
+        if (o || _PyGen_FetchStopIterationValue(&o) == 0) {
             /* The error is StopIteration and that means that
                the underlying coroutine has resolved */
 

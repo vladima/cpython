@@ -137,7 +137,7 @@ gen_dealloc(PyGenObject *gen)
 }
 
 static PyObject *
-gen_send_ex(PyGenObject *gen, PyObject *arg, int exc, int closing)
+gen_send_ex(PyGenObject *gen, PyObject *arg, int exc, int closing, PyObject **return_value)
 {
     PyThreadState *tstate = _PyThreadState_GET();
     PyFrameObject *f = gen->gi_frame;
@@ -239,7 +239,13 @@ gen_send_ex(PyGenObject *gen, PyObject *arg, int exc, int closing)
         else {
             /* Async generators cannot return anything but None */
             assert(!PyAsyncGen_CheckExact(gen));
-            _PyGen_SetStopIterationValue(result);
+            if (return_value) {
+                *return_value = result;
+                Py_INCREF(result);
+            }
+            else {
+                _PyGen_SetStopIterationValue(result);
+            }
         }
         Py_CLEAR(result);
     }
@@ -283,7 +289,13 @@ return next yielded value or raise StopIteration.");
 PyObject *
 _PyGen_Send(PyGenObject *gen, PyObject *arg)
 {
-    return gen_send_ex(gen, arg, 0, 0);
+    return gen_send_ex(gen, arg, 0, 0, NULL);
+}
+
+PyObject *
+_PyGen_SendNoStopIteration(PyGenObject *gen, PyObject *arg, PyObject **return_value)
+{
+    return gen_send_ex(gen, arg, 0, 0, return_value);
 }
 
 PyDoc_STRVAR(close_doc,
@@ -365,7 +377,7 @@ gen_close(PyGenObject *gen, PyObject *args)
     }
     if (err == 0)
         PyErr_SetNone(PyExc_GeneratorExit);
-    retval = gen_send_ex(gen, Py_None, 1, 1);
+    retval = gen_send_ex(gen, Py_None, 1, 1, NULL);
     if (retval) {
         const char *msg = "generator ignored GeneratorExit";
         if (PyCoro_CheckExact(gen)) {
@@ -413,7 +425,7 @@ _gen_throw(PyGenObject *gen, int close_on_genexit,
             gen->gi_frame->f_state = state;
             Py_DECREF(yf);
             if (err < 0)
-                return gen_send_ex(gen, Py_None, 1, 0);
+                return gen_send_ex(gen, Py_None, 1, 0, NULL);
             goto throw_here;
         }
         if (PyGen_CheckExact(yf) || PyCoro_CheckExact(yf)) {
@@ -465,10 +477,10 @@ _gen_throw(PyGenObject *gen, int close_on_genexit,
             assert(gen->gi_frame->f_lasti >= 0);
             gen->gi_frame->f_lasti += sizeof(_Py_CODEUNIT);
             if (_PyGen_FetchStopIterationValue(&val) == 0) {
-                ret = gen_send_ex(gen, val, 0, 0);
+                ret = gen_send_ex(gen, val, 0, 0, NULL);
                 Py_DECREF(val);
             } else {
-                ret = gen_send_ex(gen, Py_None, 1, 0);
+                ret = gen_send_ex(gen, Py_None, 1, 0, NULL);
             }
         }
         return ret;
@@ -522,7 +534,7 @@ throw_here:
     }
 
     PyErr_Restore(typ, val, tb);
-    return gen_send_ex(gen, Py_None, 1, 0);
+    return gen_send_ex(gen, Py_None, 1, 0, NULL);
 
 failed_throw:
     /* Didn't use our arguments, so restore their original refcounts */
@@ -551,7 +563,7 @@ gen_throw(PyGenObject *gen, PyObject *args)
 static PyObject *
 gen_iternext(PyGenObject *gen)
 {
-    return gen_send_ex(gen, NULL, 0, 0);
+    return gen_send_ex(gen, NULL, 0, 0, NULL);
 }
 
 /*
@@ -1051,13 +1063,13 @@ coro_wrapper_dealloc(PyCoroWrapper *cw)
 static PyObject *
 coro_wrapper_iternext(PyCoroWrapper *cw)
 {
-    return gen_send_ex((PyGenObject *)cw->cw_coroutine, NULL, 0, 0);
+    return gen_send_ex((PyGenObject *)cw->cw_coroutine, NULL, 0, 0, NULL);
 }
 
 static PyObject *
 coro_wrapper_send(PyCoroWrapper *cw, PyObject *arg)
 {
-    return gen_send_ex((PyGenObject *)cw->cw_coroutine, arg, 0, 0);
+    return gen_send_ex((PyGenObject *)cw->cw_coroutine, arg, 0, 0, NULL);
 }
 
 static PyObject *
@@ -1570,7 +1582,7 @@ async_gen_asend_send(PyAsyncGenASend *o, PyObject *arg)
     }
 
     o->ags_gen->ag_running_async = 1;
-    result = gen_send_ex((PyGenObject*)o->ags_gen, arg, 0, 0);
+    result = gen_send_ex((PyGenObject*)o->ags_gen, arg, 0, 0, NULL);
     result = async_gen_unwrap_value(o->ags_gen, result);
 
     if (result == NULL) {
@@ -1926,7 +1938,7 @@ async_gen_athrow_send(PyAsyncGenAThrow *o, PyObject *arg)
 
     assert(o->agt_state == AWAITABLE_STATE_ITER);
 
-    retval = gen_send_ex((PyGenObject *)gen, arg, 0, 0);
+    retval = gen_send_ex((PyGenObject *)gen, arg, 0, 0, NULL);
     if (o->agt_args) {
         return async_gen_unwrap_value(o->agt_gen, retval);
     } else {

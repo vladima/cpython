@@ -2224,8 +2224,9 @@ main_loop:
             PyObject *v = POP();
             PyObject *receiver = TOP();
             int err;
+            PyObject *return_value = NULL;
             if (PyGen_CheckExact(receiver) || PyCoro_CheckExact(receiver)) {
-                retval = _PyGen_Send((PyGenObject *)receiver, v);
+                retval = _PyGen_SendNoStopIteration((PyGenObject *)receiver, v, &return_value);
             } else {
                 _Py_IDENTIFIER(send);
                 if (v == Py_None)
@@ -2239,9 +2240,14 @@ main_loop:
                 if (tstate->c_tracefunc != NULL
                         && _PyErr_ExceptionMatches(tstate, PyExc_StopIteration))
                     call_exc_trace(tstate->c_tracefunc, tstate->c_traceobj, tstate, f);
-                err = _PyGen_FetchStopIterationValue(&val);
-                if (err < 0)
-                    goto error;
+                if (return_value) {
+                    val = return_value;
+                }
+                else {
+                    err = _PyGen_FetchStopIterationValue(&val);
+                    if (err < 0)
+                        goto error;
+                }
                 Py_DECREF(receiver);
                 SET_TOP(val);
                 DISPATCH();
